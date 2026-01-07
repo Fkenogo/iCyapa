@@ -1,0 +1,8 @@
+{
+  "name": "iCyapa",
+  "description": "Find your way, right to the door. A building-level business directory and navigation app for Nyamata, Rwanda.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}
