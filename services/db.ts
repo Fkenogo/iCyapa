@@ -39,21 +39,48 @@ class DBService {
     return this.businesses.find(b => b.business_id === id);
   }
 
+  getTrendingBusinesses() {
+    // Return verified businesses as default listing items
+    return this.businesses.filter(b => b.is_verified).slice(0, 5);
+  }
+
   search(query: string) {
-    const q = query.toLowerCase();
-    const matchedBusinesses = this.businesses.filter(b => 
-      b.business_name.toLowerCase().includes(q) || 
+    const q = query.toLowerCase().trim();
+    if (!q) return { businesses: [], buildings: [], zones: [] };
+
+    // Priority 1: Business name starts with query
+    const bizPrefix = this.businesses.filter(b => 
+      b.business_name.toLowerCase().startsWith(q)
+    );
+    
+    // Priority 2: Business name contains query (excluding prefix matches)
+    const bizContains = this.businesses.filter(b => 
+      !b.business_name.toLowerCase().startsWith(q) && 
+      b.business_name.toLowerCase().includes(q)
+    );
+
+    // Priority 3: Category matches
+    const bizCategory = this.businesses.filter(b => 
+      !b.business_name.toLowerCase().includes(q) && 
       b.categories.some(c => c.toLowerCase().includes(q))
     );
+
+    const matchedBusinesses = [...bizPrefix, ...bizContains, ...bizCategory];
+
     const matchedBuildings = this.buildings.filter(b => 
       b.building_name.toLowerCase().includes(q) || 
       b.building_address.toLowerCase().includes(q)
     );
+
     const matchedZones = this.zones.filter(z => 
       z.zone_name.toLowerCase().includes(q)
     );
 
-    return { businesses: matchedBusinesses, buildings: matchedBuildings, zones: matchedZones };
+    return { 
+      businesses: matchedBusinesses, 
+      buildings: matchedBuildings, 
+      zones: matchedZones 
+    };
   }
 
   updateBusiness(id: string, updates: Partial<Business>) {
@@ -74,11 +101,9 @@ class DBService {
   }
 
   mergeBuildings(sourceId: string, targetId: string) {
-    // Move all businesses from source to target
     this.businesses = this.businesses.map(b => 
       b.building_id === sourceId ? { ...b, building_id: targetId } : b
     );
-    // Delete source building
     this.deleteBuilding(sourceId);
   }
 
@@ -98,7 +123,6 @@ class DBService {
     this.businesses = this.businesses.filter(b => b.business_id !== id);
   }
 
-  // Comments / Feedback
   getCommentsForBuilding(buildingId: string) {
     return this.comments.filter(c => c.building_id === buildingId);
   }

@@ -1,7 +1,7 @@
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Building as BuildingIcon, MapPin, Search, ChevronRight, Verified } from 'lucide-react';
+import { ArrowLeft, Building as BuildingIcon, MapPin, Search, ChevronRight, Verified, X } from 'lucide-react';
 import SearchBar from '../components/SearchBar';
 import { db } from '../services/db';
 
@@ -11,11 +11,38 @@ const SearchResultsPage: React.FC = () => {
   const query = searchParams.get('q') || '';
   const results = db.search(query);
 
-  const totalResults = results.businesses.length + results.buildings.length + results.zones.length;
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+
+  // Get unique categories from the initial business results
+  const availableCategories = useMemo(() => {
+    const cats = new Set<string>();
+    results.businesses.forEach(biz => {
+      biz.categories.forEach(cat => cats.add(cat));
+    });
+    return Array.from(cats).sort();
+  }, [results.businesses]);
+
+  // Filter businesses based on selected categories
+  const filteredBusinesses = useMemo(() => {
+    if (selectedCategories.length === 0) return results.businesses;
+    return results.businesses.filter(biz => 
+      biz.categories.some(cat => selectedCategories.includes(cat))
+    );
+  }, [results.businesses, selectedCategories]);
+
+  const toggleCategory = (category: string) => {
+    setSelectedCategories(prev => 
+      prev.includes(category) 
+        ? prev.filter(c => c !== category) 
+        : [...prev, category]
+    );
+  };
+
+  const totalResultsCount = filteredBusinesses.length + results.buildings.length + results.zones.length;
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in duration-500">
-      <div className="px-4 pt-4 sticky top-0 bg-white z-40 space-y-4 pb-2">
+      <div className="px-4 pt-4 sticky top-0 bg-white z-40 space-y-4 pb-2 border-b shadow-sm">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate('/')} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
             <ArrowLeft size={20} className="text-gray-600" />
@@ -24,21 +51,46 @@ const SearchResultsPage: React.FC = () => {
             <SearchBar initialValue={query} />
           </div>
         </div>
-        <div className="text-sm font-medium text-gray-500 px-2">
-          {totalResults > 0 ? (
-            <span>Showing {totalResults} results for "<strong className="text-gray-900">{query}</strong>"</span>
-          ) : (
-            <span>No results found for "<strong className="text-gray-900">{query}</strong>"</span>
+
+        <div className="space-y-3 px-2">
+          <div className="text-sm font-medium text-gray-500">
+            {totalResultsCount > 0 ? (
+              <span>Showing {totalResultsCount} results for "<strong className="text-gray-900">{query}</strong>"</span>
+            ) : (
+              <span>No results found for "<strong className="text-gray-900">{query}</strong>"</span>
+            )}
+          </div>
+
+          {availableCategories.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+              {availableCategories.map(cat => {
+                const isSelected = selectedCategories.includes(cat);
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => toggleCategory(cat)}
+                    className={`shrink-0 px-4 py-1.5 rounded-full text-xs font-bold transition-all border flex items-center gap-1.5 ${
+                      isSelected 
+                        ? 'bg-blue-600 border-blue-600 text-white shadow-md' 
+                        : 'bg-white border-gray-200 text-gray-500 hover:border-blue-300'
+                    }`}
+                  >
+                    {cat}
+                    {isSelected && <X size={12} />}
+                  </button>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>
 
       <div className="px-4 space-y-8 pb-20">
-        {results.businesses.length > 0 && (
+        {filteredBusinesses.length > 0 && (
           <div className="space-y-3">
             <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest px-2">Businesses</h2>
             <div className="grid gap-3">
-              {results.businesses.map(biz => (
+              {filteredBusinesses.map(biz => (
                 <Link 
                   key={biz.business_id} 
                   to={`/business/${biz.business_id}`}
@@ -52,6 +104,11 @@ const SearchResultsPage: React.FC = () => {
                     <div className="text-xs text-gray-500">
                       {db.getBuildingById(biz.building_id)?.building_name}, Floor {biz.floor_number}
                     </div>
+                    <div className="flex gap-1 flex-wrap pt-1">
+                      {biz.categories.map(c => (
+                        <span key={c} className="px-1.5 py-0.5 bg-gray-100 rounded text-[8px] font-bold text-gray-400 uppercase">{c}</span>
+                      ))}
+                    </div>
                   </div>
                   <ChevronRight size={18} className="text-gray-300 group-hover:text-blue-500 transition-colors" />
                 </Link>
@@ -60,6 +117,7 @@ const SearchResultsPage: React.FC = () => {
           </div>
         )}
 
+        {/* Note: Buildings and Zones are not filtered by category in this implementation as they don't have categories in the schema */}
         {results.buildings.length > 0 && (
           <div className="space-y-3">
             <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest px-2">Buildings</h2>
@@ -108,7 +166,7 @@ const SearchResultsPage: React.FC = () => {
           </div>
         )}
 
-        {totalResults === 0 && (
+        {totalResultsCount === 0 && (
           <div className="py-20 text-center space-y-4">
             <div className="text-5xl">🔭</div>
             <div className="space-y-1">
